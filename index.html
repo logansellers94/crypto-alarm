@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0f14" />
+  <title>Crypto Alarm</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #0b0f14;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    .app {
+      max-width: 700px;
+      margin: auto;
+      padding: 22px;
+    }
+
+    h1 {
+      margin-bottom: 4px;
+      font-size: 30px;
+    }
+
+    .subtitle {
+      color: #8b949e;
+      margin-bottom: 24px;
+    }
+
+    .status {
+      background: #111820;
+      border: 1px solid #26303a;
+      padding: 12px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+
+    .connected {
+      color: #2ecc71;
+    }
+
+    .coin {
+      background: #111820;
+      border: 1px solid #26303a;
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+
+    .coin-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .symbol {
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .price {
+      font-size: 25px;
+      font-weight: bold;
+    }
+
+    .alert-box {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    input,
+    select,
+    button {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #30363d;
+      padding: 12px;
+      font-size: 16px;
+    }
+
+    input,
+    select {
+      background: #0d1117;
+      color: white;
+    }
+
+    button {
+      background: #238636;
+      color: white;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:active {
+      transform: scale(.98);
+    }
+
+    .alarm {
+      margin-top: 12px;
+      background: #151c24;
+      padding: 10px 12px;
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .remove {
+      width: auto;
+      background: #da3633;
+      padding: 6px 10px;
+    }
+
+    #enableNotifications {
+      margin-bottom: 20px;
+      background: #1f6feb;
+    }
+
+    .footer {
+      text-align: center;
+      color: #6e7681;
+      margin-top: 30px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <h1>⚡ Crypto Alarm</h1>
+
+  <div class="subtitle">
+    Binance USDT Perpetual Prices
+  </div>
+
+  <div class="status">
+    Binance connection:
+    <span id="connection">Connecting...</span>
+  </div>
+
+  <button id="enableNotifications">
+    🔔 Enable Notifications
+  </button>
+
+  <div id="coins"></div>
+
+  <div class="footer">
+    BTC • ZEC • HYPE
+  </div>
+
+</div>
+
+
+<script>
+
+const symbols = [
+  "BTCUSDT",
+  "ZECUSDT",
+  "HYPEUSDT"
+];
+
+const prices = {};
+let alarms =
+  JSON.parse(localStorage.getItem("cryptoAlarms") || "[]");
+
+const coinsDiv = document.getElementById("coins");
+
+
+function displaySymbol(symbol) {
+  return symbol.replace("USDT", "");
+}
+
+
+function renderCoins() {
+
+  coinsDiv.innerHTML = "";
+
+  symbols.forEach(symbol => {
+
+    const coin = document.createElement("div");
+    coin.className = "coin";
+
+    coin.innerHTML = `
+      <div class="coin-top">
+        <div class="symbol">
+          ${displaySymbol(symbol)}/USDT
+        </div>
+
+        <div
+          class="price"
+          id="price-${symbol}"
+        >
+          ---
+        </div>
+      </div>
+
+      <div class="alert-box">
+
+        <select id="direction-${symbol}">
+          <option value="above">
+            Price Above
+          </option>
+
+          <option value="below">
+            Price Below
+          </option>
+        </select>
+
+        <input
+          id="target-${symbol}"
+          type="number"
+          step="any"
+          placeholder="Target price"
+        >
+
+      </div>
+
+      <button
+        style="margin-top:10px"
+        onclick="addAlarm('${symbol}')"
+      >
+        + Add Alarm
+      </button>
+
+      <div id="alarms-${symbol}"></div>
+    `;
+
+    coinsDiv.appendChild(coin);
+
+  });
+
+  renderAlarms();
+}
+
+
+function renderAlarms() {
+
+  symbols.forEach(symbol => {
+
+    const box =
+      document.getElementById("alarms-" + symbol);
+
+    box.innerHTML = "";
+
+    alarms
+      .filter(a => a.symbol === symbol)
+      .forEach(alarm => {
+
+        const row = document.createElement("div");
+
+        row.className = "alarm";
+
+        row.innerHTML = `
+          <span>
+            ${alarm.direction === "above" ? "⬆️" : "⬇️"}
+            ${alarm.price}
+          </span>
+
+          <button
+            class="remove"
+            onclick="removeAlarm('${alarm.id}')"
+          >
+            ✕
+          </button>
+        `;
+
+        box.appendChild(row);
+
+      });
+
+  });
+
+}
+
+
+function addAlarm(symbol) {
+
+  const direction =
+    document.getElementById(
+      "direction-" + symbol
+    ).value;
+
+  const price =
+    parseFloat(
+      document.getElementById(
+        "target-" + symbol
+      ).value
+    );
+
+  if (!price) {
+    alert("Enter a target price.");
+    return;
+  }
+
+  alarms.push({
+    id: Date.now().toString(),
+    symbol,
+    direction,
+    price,
+    triggered: false
+  });
+
+  saveAlarms();
+
+  document.getElementById(
+    "target-" + symbol
+  ).value = "";
+
+  renderAlarms();
+}
+
+
+function removeAlarm(id) {
+
+  alarms =
+    alarms.filter(a => a.id !== id);
+
+  saveAlarms();
+  renderAlarms();
+}
+
+
+function saveAlarms() {
+  localStorage.setItem(
+    "cryptoAlarms",
+    JSON.stringify(alarms)
+  );
+}
+
+
+function checkAlarms(symbol, price) {
+
+  alarms.forEach(alarm => {
+
+    if (
+      alarm.symbol !== symbol ||
+      alarm.triggered
+    ) return;
+
+    let hit = false;
+
+    if (
+      alarm.direction === "above" &&
+      price >= alarm.price
+    ) {
+      hit = true;
+    }
+
+    if (
+      alarm.direction === "below" &&
+      price <= alarm.price
+    ) {
+      hit = true;
+    }
+
+    if (hit) {
+
+      alarm.triggered = true;
+
+      saveAlarms();
+
+      triggerAlarm(alarm, price);
+    }
+
+  });
+
+}
+
+
+function triggerAlarm(alarm, currentPrice) {
+
+  const coin =
+    displaySymbol(alarm.symbol);
+
+  const text =
+    `${coin} hit ${currentPrice}`;
+
+  playAlarm();
+
+  if (
+    "Notification" in window &&
+    Notification.permission === "granted"
+  ) {
+
+    new Notification(
+      "🚨 Crypto Alarm",
+      {
+        body: text
+      }
+    );
+
+  }
+
+  alert(
+    "🚨 CRYPTO ALARM 🚨\n\n" +
+    text
+  );
+
+}
+
+
+function playAlarm() {
+
+  const context =
+    new (
+      window.AudioContext ||
+      window.webkitAudioContext
+    )();
+
+  const oscillator =
+    context.createOscillator();
+
+  const gain =
+    context.createGain();
+
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+
+  oscillator.frequency.value = 880;
+  gain.gain.value = 0.4;
+
+  oscillator.start();
+
+  setTimeout(() => {
+    oscillator.stop();
+  }, 1500);
+
+}
+
+
+document
+  .getElementById("enableNotifications")
+  .onclick = async () => {
+
+    if (!("Notification" in window)) {
+      alert("Notifications not supported.");
+      return;
+    }
+
+    const permission =
+      await Notification.requestPermission();
+
+    if (permission === "granted") {
+      alert("Notifications enabled!");
+    }
+
+  };
+
+
+function connectBinance() {
+
+  const streams =
+    symbols
+      .map(s => s.toLowerCase() + "@ticker")
+      .join("/");
+
+  const socket =
+    new WebSocket(
+      "wss://fstream.binance.com/stream?streams=" +
+      streams
+    );
+
+  socket.onopen = () => {
+
+    const status =
+      document.getElementById("connection");
+
+    status.innerText = "LIVE ●";
+    status.className = "connected";
+
+  };
+
+
+  socket.onmessage = event => {
+
+    const message =
+      JSON.parse(event.data);
+
+    if (!message.data) return;
+
+    const symbol =
+      message.data.s;
+
+    const price =
+      parseFloat(message.data.c);
+
+    prices[symbol] = price;
+
+    const priceElement =
+      document.getElementById(
+        "price-" + symbol
+      );
+
+    if (priceElement) {
+
+      priceElement.innerText =
+        "$" +
+        price.toLocaleString(
+          undefined,
+          {
+            maximumFractionDigits: 8
+          }
+        );
+
+    }
+
+    checkAlarms(symbol, price);
+
+  };
+
+
+  socket.onclose = () => {
+
+    document.getElementById(
+      "connection"
+    ).innerText =
+      "Disconnected — reconnecting...";
+
+    setTimeout(
+      connectBinance,
+      3000
+    );
+
+  };
+
+}
+
+
+renderCoins();
+connectBinance();
+
+</script>
+
+</body>
+</html>
